@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminAnnotationsApi } from '../api/admin-annotations-api';
+import { useSelectedDataset } from '@/features/dataset/context/dataset-context';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -35,15 +36,19 @@ function getInitials(email: string): string {
 
 export function AssignAnnotationsPage() {
   const queryClient = useQueryClient();
+  const { selectedDataset, isHydrated } = useSelectedDataset();
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedAnnotatorId, setSelectedAnnotatorId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [datasetFilter, setDatasetFilter] = useState<string>('all');
 
   // ── Queries ──
   const { data: assignmentsResponse, isLoading: isLoadingJobs } = useQuery({
-    queryKey: ['admin', 'job-assignments'],
-    queryFn: () => adminAnnotationsApi.getJobAssignments(),
+    // Scoped to the dataset picked in the workspace modal, like the other pages.
+    // Wait for hydration: selectedDataset is null on the first render, and an
+    // early fetch would briefly list every dataset's jobs together.
+    queryKey: ['admin', 'job-assignments', selectedDataset?.id ?? null],
+    queryFn: () => adminAnnotationsApi.getJobAssignments(selectedDataset?.id),
+    enabled: isHydrated,
   });
 
   const { data: queueStatus, isLoading: isLoadingQueueStatus } = useQuery({
@@ -102,22 +107,11 @@ export function AssignAnnotationsPage() {
   const jobs = assignmentsResponse?.items || [];
   const annotators = usersResponse?.items || [];
 
-  // Datasets present in the loaded jobs, with how many jobs each has
-  const datasetOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    jobs.forEach((job) => {
-      const name = job.dataset_name || 'Tanpa dataset';
-      counts.set(name, (counts.get(name) || 0) + 1);
-    });
-    return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [jobs]);
-
   const filteredJobs = useMemo(() =>
     jobs.filter((job) =>
-      (job.original_filename || '').toLowerCase().includes(searchQuery.toLowerCase()) &&
-      (datasetFilter === 'all' || (job.dataset_name || 'Tanpa dataset') === datasetFilter)
+      (job.original_filename || '').toLowerCase().includes(searchQuery.toLowerCase())
     ),
-    [jobs, searchQuery, datasetFilter]
+    [jobs, searchQuery]
   );
 
   const selectedJob = jobs.find((j: any) => j.job_id === selectedJobId);
@@ -161,6 +155,11 @@ export function AssignAnnotationsPage() {
               <UserCheck className="w-6 h-6 text-teal-600" />
             </div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Distribusi Tugas JBI</h1>
+            {selectedDataset && (
+              <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-semibold">
+                {selectedDataset.name}
+              </span>
+            )}
           </div>
           <p className="text-slate-500 text-sm max-w-2xl leading-relaxed">
             Pilih video yang telah siap, lalu tugaskan kepada annotator JBI. Job yang sudah ditugaskan dapat diganti Annotatornya kapan saja.
@@ -198,19 +197,6 @@ export function AssignAnnotationsPage() {
               1. Pilih Job Target
             </h2>
             <div className="flex items-center gap-2">
-              <select
-                aria-label="Filter dataset"
-                value={datasetFilter}
-                onChange={(e) => setDatasetFilter(e.target.value)}
-                className="py-2 pl-3 pr-8 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 shadow-sm"
-              >
-                <option value="all">Semua dataset ({jobs.length})</option>
-                {datasetOptions.map(([name, count]) => (
-                  <option key={name} value={name}>
-                    {name} ({count})
-                  </option>
-                ))}
-              </select>
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
@@ -249,11 +235,11 @@ export function AssignAnnotationsPage() {
                     <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                   </div>
                   <p className="font-semibold text-slate-900 text-lg">
-                    {searchQuery || datasetFilter !== 'all' ? 'Tidak ada hasil' : 'Semua Job Selesai!'}
+                    {searchQuery ? 'Tidak ada hasil' : 'Semua Job Selesai!'}
                   </p>
                   <p className="text-sm text-center max-w-sm">
-                    {searchQuery || datasetFilter !== 'all'
-                      ? 'Coba ubah kata kunci pencarian atau filter dataset.'
+                    {searchQuery
+                      ? 'Coba ubah kata kunci pencarian.'
                       : 'Tidak ada job yang menunggu untuk dialokasikan saat ini.'}
                   </p>
                 </div>

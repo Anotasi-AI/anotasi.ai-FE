@@ -96,7 +96,7 @@ export const adminAnnotationsApi = {
    * jobs. Walk every page so older jobs (e.g. an earlier dataset) are not
    * silently dropped from the assignment view.
    */
-  getJobAssignments: async (): Promise<JobAssignmentsResponse> => {
+  getJobAssignments: async (datasetId?: string): Promise<JobAssignmentsResponse> => {
     const pageSize = 100;
     const items: JobAssignmentItem[] = [];
     let total = 0;
@@ -105,7 +105,7 @@ export const adminAnnotationsApi = {
     for (;;) {
       const { data } = await apiClient.get<JobAssignmentsResponse>(
         '/admin/annotations/job-assignments',
-        { params: { limit: pageSize, offset } },
+        { params: { limit: pageSize, offset, dataset_id: datasetId } },
       );
       items.push(...data.items);
       total = data.total;
