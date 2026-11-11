@@ -33,6 +33,8 @@ export interface JobAssignmentItem {
   original_filename: string;
   status: string;
   category: string | null;
+  dataset_id: string | null;
+  dataset_name: string | null;
   created_at: string | null;
   total_segments: number;
   assigned_segments: number;
@@ -87,10 +89,32 @@ export const adminAnnotationsApi = {
       .post<ReassignJobResponse>('/admin/annotations/reassign-job', null, { params })
       .then((r) => r.data),
 
-  getJobAssignments: () =>
-    apiClient
-      .get<JobAssignmentsResponse>('/admin/annotations/job-assignments')
-      .then((r) => r.data),
+  /**
+   * GET /admin/annotations/job-assignments
+   *
+   * The endpoint is paginated, so one call only returns the newest page of
+   * jobs. Walk every page so older jobs (e.g. an earlier dataset) are not
+   * silently dropped from the assignment view.
+   */
+  getJobAssignments: async (): Promise<JobAssignmentsResponse> => {
+    const pageSize = 100;
+    const items: JobAssignmentItem[] = [];
+    let total = 0;
+    let offset = 0;
+
+    for (;;) {
+      const { data } = await apiClient.get<JobAssignmentsResponse>(
+        '/admin/annotations/job-assignments',
+        { params: { limit: pageSize, offset } },
+      );
+      items.push(...data.items);
+      total = data.total;
+      offset += pageSize;
+      if (data.items.length === 0 || items.length >= total) break;
+    }
+
+    return { items, total, limit: items.length, offset: 0 };
+  },
 
   getAnnotators: () =>
     apiClient
