@@ -38,6 +38,7 @@ export function AssignAnnotationsPage() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedAnnotatorId, setSelectedAnnotatorId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [datasetFilter, setDatasetFilter] = useState<string>('all');
 
   // ── Queries ──
   const { data: assignmentsResponse, isLoading: isLoadingJobs } = useQuery({
@@ -101,11 +102,22 @@ export function AssignAnnotationsPage() {
   const jobs = assignmentsResponse?.items || [];
   const annotators = usersResponse?.items || [];
 
+  // Datasets present in the loaded jobs, with how many jobs each has
+  const datasetOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    jobs.forEach((job) => {
+      const name = job.dataset_name || 'Tanpa dataset';
+      counts.set(name, (counts.get(name) || 0) + 1);
+    });
+    return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [jobs]);
+
   const filteredJobs = useMemo(() =>
-    jobs.filter((job: any) =>
-      (job.original_filename || '').toLowerCase().includes(searchQuery.toLowerCase())
+    jobs.filter((job) =>
+      (job.original_filename || '').toLowerCase().includes(searchQuery.toLowerCase()) &&
+      (datasetFilter === 'all' || (job.dataset_name || 'Tanpa dataset') === datasetFilter)
     ),
-    [jobs, searchQuery]
+    [jobs, searchQuery, datasetFilter]
   );
 
   const selectedJob = jobs.find((j: any) => j.job_id === selectedJobId);
@@ -185,15 +197,30 @@ export function AssignAnnotationsPage() {
             <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
               1. Pilih Job Target
             </h2>
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Cari judul video..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 w-64 transition-all shadow-sm"
-              />
+            <div className="flex items-center gap-2">
+              <select
+                aria-label="Filter dataset"
+                value={datasetFilter}
+                onChange={(e) => setDatasetFilter(e.target.value)}
+                className="py-2 pl-3 pr-8 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 shadow-sm"
+              >
+                <option value="all">Semua dataset ({jobs.length})</option>
+                {datasetOptions.map(([name, count]) => (
+                  <option key={name} value={name}>
+                    {name} ({count})
+                  </option>
+                ))}
+              </select>
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Cari judul video..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 w-56 transition-all shadow-sm"
+                />
+              </div>
             </div>
           </div>
 
@@ -222,11 +249,11 @@ export function AssignAnnotationsPage() {
                     <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                   </div>
                   <p className="font-semibold text-slate-900 text-lg">
-                    {searchQuery ? 'Tidak ada hasil' : 'Semua Job Selesai!'}
+                    {searchQuery || datasetFilter !== 'all' ? 'Tidak ada hasil' : 'Semua Job Selesai!'}
                   </p>
                   <p className="text-sm text-center max-w-sm">
-                    {searchQuery
-                      ? 'Coba ubah kata kunci pencarian.'
+                    {searchQuery || datasetFilter !== 'all'
+                      ? 'Coba ubah kata kunci pencarian atau filter dataset.'
                       : 'Tidak ada job yang menunggu untuk dialokasikan saat ini.'}
                   </p>
                 </div>
@@ -263,6 +290,9 @@ export function AssignAnnotationsPage() {
                             {job.original_filename || 'Unknown Video'}
                           </h3>
                           <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium flex-wrap">
+                            <span className="flex items-center gap-1 text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md font-semibold">
+                              {job.dataset_name || 'Tanpa dataset'}
+                            </span>
                             <span className="flex items-center gap-1.5 bg-slate-100 px-2 py-0.5 rounded-md font-mono">
                               <FileText className="w-3 h-3" /> {job.job_id.slice(0, 8)}...
                             </span>
