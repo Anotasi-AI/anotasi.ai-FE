@@ -1,5 +1,6 @@
 import { apiClient } from '@/core/api/axios-client';
 import type {
+  VoiceAnnotationJob,
   VoiceAnnotationJobListResponse,
   VoiceAnnotationJobSummary,
   VoiceAnnotationUtteranceListResponse,
@@ -18,6 +19,32 @@ export const voiceAnnotationApi = {
     apiClient
       .get<VoiceAnnotationJobListResponse>('/voice-annotation/jobs', { params })
       .then((r) => r.data),
+
+  /**
+   * Every job for a dataset. /voice-annotation/jobs is paginated, so one call
+   * only returns a single page; walk all pages so older jobs are not silently
+   * dropped from the list.
+   */
+  getAllJobs: async (datasetId?: string): Promise<VoiceAnnotationJobListResponse> => {
+    const pageSize = 100;
+    const items: VoiceAnnotationJob[] = [];
+    let page = 1;
+    let pages = 1;
+    let total = 0;
+
+    do {
+      const { data } = await apiClient.get<VoiceAnnotationJobListResponse>(
+        '/voice-annotation/jobs',
+        { params: { page, page_size: pageSize, dataset_id: datasetId } },
+      );
+      items.push(...data.items);
+      pages = data.pages;
+      total = data.total;
+      page += 1;
+    } while (page <= pages);
+
+    return { items, total, page: 1, page_size: items.length, pages: 1 };
+  },
 
   /** GET /voice-annotation/jobs/:jobId — job summary */
   getJobSummary: (jobId: string) =>

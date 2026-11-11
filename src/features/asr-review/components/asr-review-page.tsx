@@ -133,6 +133,7 @@ type FilterMode = 'all' | 'flagged' | 'clean' | 'pending';
 
 function JobPicker({ onSelectJob }: { onSelectJob: (jobId: string) => void }) {
   const { selectedDataset, isHydrated } = useSelectedDataset();
+  const datasetId = selectedDataset?.id;
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<VoiceAnnotationJob[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -144,14 +145,11 @@ function JobPicker({ onSelectJob }: { onSelectJob: (jobId: string) => void }) {
   // immediately sends dataset_id=undefined and briefly lists every dataset's
   // jobs together before the correctly-scoped list replaces it.
   useEffect(() => {
-    if (!isHydrated) return;
+    // No dataset yet means the picker modal is up; fetching now would be unscoped.
+    if (!isHydrated || !datasetId) return;
     (async () => {
       try {
-        const data = await voiceAnnotationApi.getJobs({
-          page: 1,
-          page_size: 50,
-          dataset_id: selectedDataset?.id,
-        });
+        const data = await voiceAnnotationApi.getAllJobs(datasetId);
         setJobs(data.items);
       } catch {
         setError('Gagal memuat daftar job');
@@ -159,7 +157,7 @@ function JobPicker({ onSelectJob }: { onSelectJob: (jobId: string) => void }) {
         setLoading(false);
       }
     })();
-  }, [isHydrated, selectedDataset?.id]);
+  }, [isHydrated, datasetId]);
 
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
