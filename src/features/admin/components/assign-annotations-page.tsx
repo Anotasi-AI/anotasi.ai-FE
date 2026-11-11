@@ -48,7 +48,8 @@ export function AssignAnnotationsPage() {
     // early fetch would briefly list every dataset's jobs together.
     queryKey: ['admin', 'job-assignments', selectedDataset?.id ?? null],
     queryFn: () => adminAnnotationsApi.getJobAssignments(selectedDataset?.id),
-    enabled: isHydrated,
+    // No dataset yet means the picker modal is up; fetching now would be unscoped.
+    enabled: isHydrated && !!selectedDataset,
   });
 
   const { data: queueStatus, isLoading: isLoadingQueueStatus } = useQuery({
